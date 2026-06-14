@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minenfeld</title>
+    <style>
+        /* --- DESIGN-PALETTE (Abenteuer, Dschungel-Tempel, 3D-Stein) --- */
+        :root { 
+            --stone-light: #e6d8b8;
+            --stone-mid: #c2b08d;
+            --stone-dark: #8c7657;
+            --stone-border: #4a3525;
+            --text-dark: #312115;
+            --gold: #d4af37;
+            --danger: #990000;
+            --safe: #1b5e20;
+        }
+        
+        body { 
+            /* Dunkler, mystischer Höhlen-Hintergrund für starken Kontrast */
+            background: linear-gradient(135deg, #1a1613 0%, #3a2a1f 100%); 
+            font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start; 
+            min-height: 100vh; margin: 0; padding: 15px; color: var(--text-dark); 
+            user-select: none; -webkit-user-select: none; box-sizing: border-box; overflow-x: hidden; 
+        }
+
+        .screen { display: none; width: 100%; justify-content: center; flex-direction: column; align-items: center; max-width: 500px; margin-top: 5px; }
+        .screen.active { display: flex; animation: fadeIn 0.4s ease-out; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- HAUPT-PANEL (Die massive Steinplatte) --- */
+        .stone-panel {
+            background: radial-gradient(circle at center, var(--stone-light) 0%, var(--stone-mid) 100%);
+            border: 4px solid var(--stone-border);
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            /* Fetter 3D-Schatten nach außen, Highlight nach innen */
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8), inset 0 5px 15px rgba(255,255,255,0.6), inset 0 -5px 15px rgba(0,0,0,0.3);
+            width: 100%; max-width: 420px;
+            position: relative;
+        }
+
+        /* Dekorative Nieten in den Ecken */
+        .rivet {
+            position: absolute; width: 12px; height: 12px; background: #5a4b3d;
+            border-radius: 50%; border: 2px solid #2e2218;
+            box-shadow: inset 2px 2px 4px rgba(255,255,255,0.3), 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .rivet.tl { top: 10px; left: 10px; }
+        .rivet.tr { top: 10px; right: 10px; }
+        .rivet.bl { bottom: 10px; left: 10px; }
+        .rivet.br { bottom: 10px; right: 10px; }
+
+        h1 {
+            margin: 0 0 20px 0; font-size: 34px; letter-spacing: 3px; 
+            color: #fdf5e6; text-transform: uppercase;
+            /* Harter Inka-Schrift-Schatten */
+            text-shadow: 2px 2px 0 var(--stone-border), -1px -1px 0 var(--stone-border), 1px -1px 0 var(--stone-border), -1px 1px 0 var(--stone-border), 4px 4px 10px rgba(0,0,0,0.8);
+        }
+
+        /* --- BILD RAHMEN (Edel & Massiv) --- */
+        .avatar-frame {
+            width: 150px; height: auto; margin: 0 auto 20px;
+            border: 4px solid var(--stone-border);
+            border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5), inset 0 0 10px rgba(0,0,0,0.5);
+            display: block; 
+        }
+
+        .flavor-text {
+            font-style: italic; color: #4a3525; font-size: 16px; margin: 20px 0;
+            line-height: 1.4; font-weight: bold;
+            background: rgba(255,255,255,0.3);
+            border-radius: 6px; padding: 15px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* --- MASSIVE 3D-BUTTONS --- */
+        .btn-3d {
+            display: inline-block; width: 90%; margin-top: 15px;
+            padding: 15px 20px; font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
+            color: #fff; border: 3px solid #111; border-radius: 10px;
+            cursor: pointer; text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        
+        .btn-green {
+            background: linear-gradient(to bottom, #4caf50, #2e7d32);
+            /* Der dicke "Lippen"-Schatten unten macht den 3D-Effekt */
+            box-shadow: 0 8px 0 #1b5e20, 0 15px 20px rgba(0,0,0,0.5);
+        }
+        .btn-green:active {
+            transform: translateY(8px); /* Button wird reingedrückt */
+            box-shadow: 0 0 0 #1b5e20, 0 5px 10px rgba(0,0,0,0.5);
+        }
+
+        .btn-red {
+            background: linear-gradient(to bottom, #e53935, #b71c1c);
+            box-shadow: 0 8px 0 #7f0000, 0 15px 20px rgba(0,0,0,0.5);
+        }
+        .btn-red:active { transform: translateY(8px); box-shadow: 0 0 0 #7f0000, 0 5px 10px rgba(0,0,0,0.5); }
+
+        .btn-stone {
+            background: linear-gradient(to bottom, var(--stone-mid), var(--stone-dark));
+            box-shadow: 0 6px 0 var(--stone-border), 0 10px 15px rgba(0,0,0,0.4);
+            border-color: var(--stone-border); padding: 12px; font-size: 16px;
+        }
+        .btn-stone:active { transform: translateY(6px); box-shadow: 0 0 0 var(--stone-border), 0 4px 8px rgba(0,0,0,0.4); }
+
+        /* --- HEADER IM SPIEL --- */
+        .header-bar {
+            display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 15px;
+            background: var(--stone-border); padding: 10px 15px; border-radius: 8px; 
+            box-sizing: border-box; font-weight: bold; font-size: 18px; color: #fff;
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.4);
+        }
+
+        .btn-rules {
+            background: var(--danger); color: white; border: 2px solid #fff;
+            border-radius: 50%; width: 34px; height: 34px; display: flex; justify-content: center; align-items: center;
+            font-weight: bold; cursor: pointer; box-shadow: 0 3px 0 #5a0000; text-shadow: 1px 1px 1px #000;
+        }
+        .btn-rules:active { transform: translateY(3px); box-shadow: 0 0 0 #5a0000; }
+
+        /* --- KUGELSICHERES MINEN-RASTER --- */
+        .grid-container {
+            width: 100%; max-width: 420px; aspect-ratio: 1 / 1; box-sizing: border-box;
+            background: var(--stone-border); padding: 5px; border-radius: 8px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5), inset 0 5px 10px rgba(0,0,0,0.6);
+        }
+
+        .ms-grid { display: grid; gap: 3px; width: 100%; height: 100%; touch-action: none; }
+
+        /* Die dicken Fliesen */
+        .ms-cell {
+            background: linear-gradient(135deg, var(--stone-light), var(--stone-mid));
+            border-radius: 4px; display: flex; justify-content: center; align-items: center; font-weight: bold;
+            cursor: pointer; color: transparent; box-sizing: border-box; width: 100%; height: 100%; -webkit-touch-callout: none;
+            /* Echter 3D-Stein-Look */
+            box-shadow: inset 2px 2px 5px rgba(255,255,255,0.7), inset -2px -2px 5px rgba(0,0,0,0.3), 0 3px 0 rgba(0,0,0,0.4);
+            border: 1px solid var(--stone-dark);
+        }
+
+        /* Aufgedeckte Fliese (Sinkt in den Boden ein) */
+        .ms-cell.revealed { 
+            background: #bba986; border: 1px solid var(--stone-border); color: var(--text-dark); cursor: default; 
+            box-shadow: inset 3px 3px 8px rgba(0,0,0,0.4); /* Tiefer Innenschatten */
+        }
+        
+        .ms-cell[data-val="1"] { color: #0033cc; text-shadow: 1px 1px 0px rgba(255,255,255,0.5); }
+        .ms-cell[data-val="2"] { color: #1b5e20; text-shadow: 1px 1px 0px rgba(255,255,255,0.5); }
+        .ms-cell[data-val="3"] { color: #b71c1c; text-shadow: 1px 1px 0px rgba(255,255,255,0.5); }
+        .ms-cell[data-val="4"] { color: #4a148c; }
+        .ms-cell[data-val="5"] { color: #e65100; }
+        .ms-cell[data-val="6"] { color: #006064; }
+        .ms-cell[data-val="7"] { color: #212121; }
+        .ms-cell[data-val="8"] { color: #000000; }
+
+        .ms-cell.flagged { color: var(--danger) !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
+        .ms-cell.mine { background: var(--danger); color: white !important; box-shadow: inset 3px 3px 8px rgba(0,0,0,0.6); }
+        .ms-cell.mine-hit { background: #000; color: var(--danger) !important; }
+
+        /* --- REGELN MODAL --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.3s; }
+        
+        .note-paper { 
+            background: #fdf5e6; color: #2b1b17; padding: 30px 25px; width: 85%; max-width: 380px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.8); font-family: 'Georgia', serif; font-style: italic; 
+            border-radius: 2px 15px 3px 20px; border-left: 6px solid #b5a89c; font-size: 16px; line-height: 1.5;
+            position: relative;
+        }
+        
+        .close-btn {
+            position: absolute; top: -15px; right: -15px; background: var(--danger); color: white;
+            border-radius: 50%; width: 36px; height: 36px; display: flex; justify-content: center; align-items: center;
+            font-weight: bold; font-size: 18px; border: 3px solid #fff; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        .shake { animation: shake 0.4s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div class="modal-overlay" id="rules-modal">
+        <div class="note-paper" style="transform: rotate(-1deg);">
+            <div class="close-btn" onclick="toggleRules()">X</div>
+            <strong style="font-size: 18px;">Versteckules' Regelwerk:</strong><br><br>
+            "Jeder Fehltritt reißt dich ins Verderben. Sichere alle freien Fliesen, ohne eine verdeckte Falle (💣) auszulösen.<br><br>
+            <b>Die Zahlen:</b><br>
+            Sie offenbaren dir exakt, wie viele Fallen sich auf den direkt angrenzenden 8 Nachbarfeldern befinden.<br><br>
+            <b>Die Steuerung:</b><br>
+            • <b>Kurz tippen:</b> Eine Fliese betreten.<br>
+            • <b>Lang gedrückt halten:</b> Eine rote Flagge (🚩) stecken, um eine Falle zu markieren. Erneut lang drücken entfernt sie wieder.<br><br>
+            <i>Nutze die reine Logik, niemals das Glück!</i>"
+        </div>
+    </div>
+
+    <div id="boot-screen" class="screen active">
+        <div class="stone-panel">
+            <div class="rivet tl"></div><div class="rivet tr"></div><div class="rivet bl"></div><div class="rivet br"></div>
+            <h1>Minenfeld</h1>
+            <img src="avatar.jpg" class="avatar-frame" alt="Logo" onerror="this.style.display='none'">
+            <div class="flavor-text">
+                "Nur wer einen klaren Geist bewahrt, wird den tödlichen Boden unbeschadet überqueren..."
+            </div>
+            <button class="btn-3d btn-green" onclick="initSystem()">Minenfeld betreten</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div class="stone-panel">
+            <div class="rivet tl"></div><div class="rivet tr"></div><div class="rivet bl"></div><div class="rivet br"></div>
+            
+            <div class="header-bar">
+                <span id="level-title">Prüfung I</span>
+                <span style="background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 4px;">
+                    🚩 <span id="flag-counter" style="color: #ff5252; font-family: monospace; font-size: 22px;">0</span>
+                </span>
+                <div class="btn-rules" onclick="toggleRules()">?</div>
+            </div>
+            
+            <div id="game-message" style="height: 25px; font-weight: bold; font-size: 18px; color: var(--safe); margin-bottom: 8px; text-align: center; text-shadow: 1px 1px 1px rgba(255,255,255,0.5);">Das Feld ist bereit.</div>
+
+            <div class="grid-container">
+                <div class="ms-grid" id="grid"></div>
+            </div>
+
+            <div id="controls-area" style="width: 100%; display: none; margin-top: 10px;">
+                <button class="btn-3d btn-green" id="btn-next" onclick="nextLevel()">Nächste Ebene</button>
+                <button class="btn-3d btn-red" id="btn-retry" onclick="restartLevel()">Prüfung wiederholen</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="final-screen" class="screen">
+        <div class="stone-panel">
+            <div class="rivet tl"></div><div class="rivet tr"></div><div class="rivet bl"></div><div class="rivet br"></div>
+            
+            <h1 style="color: var(--danger); font-size: 30px;">Minenfeld<br>geräumt</h1>
+            <img src="avatar.jpg" class="avatar-frame" style="width:130px;" alt="Logo" onerror="this.style.display='none'">
+            <p style="font-weight: bold; margin: 15px 0 10px 0; font-size: 18px;">Hervorragend! Der Weg ist sicher.</p>
+            <p style="margin: 0 0 15px 0;">Hier sind deine Zielkoordinaten:</p>
+            
+            <div id="final-coords" style="font-size: 22px; font-weight: bold; color: #fff; background: var(--stone-border); padding: 15px; border: 3px inset #2e2218; border-radius: 6px; font-family: monospace; box-shadow: 0 5px 15px rgba(0,0,0,0.5);"></div>
+            
+            <p style="font-size: 16px; font-style: italic; font-weight: bold; margin-top: 20px; margin-bottom: 0;">Gute Jagd im Zielgebiet!</p>
+        </div>
+    </div>
+
+    <script>
+        const SEC_FIN = "TiA1MF4gMTUuMDE5JyBFIDEyXiAwMi40Nzk=";
+        let audioCtx;
+
+        const LEVELS = [
+            { c: 6,  r: 6,  m: 6,  name: "Prüfung I (Einfach)" },
+            { c: 8,  r: 8,  m: 12, name: "Prüfung II (Mittel)" },
+            { c: 10, r: 10, m: 20, name: "Prüfung III (Schwer)" }
+        ];
+
+        let currentLevel = 0;
+        let gridData = [];
+        let cols = 0, rows = 0, totalMines = 0;
+        let isFirstClick = true;
+        let isGameOver = false;
+        let flagsPlaced = 0;
+        let safeCellsRevealed = 0;
+
+        function initSystem(){ 
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); 
+            document.getElementById('boot-screen').classList.remove('active');
+            document.getElementById('game-screen').classList.add('active');
+            toggleRules(); 
+            buildLevel(); 
+        }
+
+        function playTone(f, t, d){ 
+            if(!audioCtx) return; 
+            try {
+                let o = audioCtx.createOscillator(); 
+                let g = audioCtx.createGain(); 
+                o.type = t; o.frequency.value = f; 
+                o.connect(g); g.connect(audioCtx.destination); 
+                o.start(); 
+                g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + d); 
+                o.stop(audioCtx.currentTime + d); 
+            } catch(e) {}
+        }
+        const sndClick = () => playTone(350, 'triangle', 0.1); 
+        const sndFlag = () => playTone(500, 'sine', 0.08);
+        const sndSuccess = () => { playTone(450, 'sine', 0.15); setTimeout(() => playTone(750, 'sine', 0.35), 150); };
+        const sndError = () => playTone(90, 'sawtooth', 0.5); 
+
+        function toggleRules() {
+            document.getElementById('rules-modal').classList.toggle('active');
+        }
+
+        function msg(text, color = "var(--text-dark)") {
+            let el = document.getElementById('game-message');
+            el.innerText = text;
+            el.style.color = color;
+        }
+
+        function buildLevel() {
+            let config = LEVELS[currentLevel];
+            cols = config.c; rows = config.r; totalMines = config.m;
+            
+            document.getElementById('level-title').innerText = config.name;
+            flagsPlaced = 0; updateFlagCounter();
+            isFirstClick = true; isGameOver = false; safeCellsRevealed = 0;
+            
+            msg("Das Feld liegt vor dir.", "var(--safe)");
+            document.getElementById('controls-area').style.display = 'none';
+            document.getElementById('btn-next').style.display = 'none';
+            document.getElementById('btn-retry').style.display = 'none';
+
+            let gridEl = document.getElementById('grid');
+            gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            gridEl.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+            gridEl.innerHTML = '';
+
+            gridData = [];
+            for (let i = 0; i < cols * rows; i++) {
+                gridData.push({ mine: false, revealed: false, flagged: false, neighbors: 0 });
+
+                let cell = document.createElement('div');
+                cell.className = 'ms-cell';
+                cell.id = 'cell-' + i;
+                cell.style.fontSize = `calc(220px / ${cols})`;
+                
+                attachCellEvents(cell, i);
+                gridEl.appendChild(cell);
+            }
+        }
+
+        function attachCellEvents(cell, index) {
+            let pressTimer = null;
+            let isLongPress = false;
+
+            const startPress = (e) => {
+                if (isGameOver || gridData[index].revealed) return;
+                if(e.type === 'touchstart' || (e.type === 'mousedown' && e.button === 0)) {
+                    isLongPress = false;
+                    pressTimer = setTimeout(() => {
+                        isLongPress = true;
+                        handleFlag(index);
+                        if (navigator.vibrate) navigator.vibrate(40); 
+                    }, 400); 
+                }
+            };
+
+            const endPress = (e) => {
+                if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+                if (!isLongPress && !isGameOver && !gridData[index].flagged) {
+                    if (e.type === 'mouseup' || e.type === 'touchend') {
+                        if(e.cancelable) e.preventDefault(); 
+                        handleReveal(index);
+                    }
+                }
+            };
+
+            const cancelPress = () => {
+                if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+            };
+
+            cell.addEventListener('touchstart', startPress, {passive: false});
+            cell.addEventListener('touchend', endPress, {passive: false});
+            cell.addEventListener('touchcancel', cancelPress);
+            cell.addEventListener('touchmove', cancelPress);
+
+            cell.addEventListener('mousedown', startPress);
+            cell.addEventListener('mouseup', endPress);
+            cell.addEventListener('mouseleave', cancelPress);
+        }
+
+        function handleFlag(idx) {
+            let cellData = gridData[idx];
+            if (cellData.revealed) return;
+            
+            sndFlag();
+            cellData.flagged = !cellData.flagged;
+            let el = document.getElementById('cell-' + idx);
+            
+            if (cellData.flagged) {
+                el.classList.add('flagged');
+                el.innerText = '🚩';
+                flagsPlaced++;
+            } else {
+                el.classList.remove('flagged');
+                el.innerText = '';
+                flagsPlaced--;
+            }
+            updateFlagCounter();
+        }
+
+        function updateFlagCounter() {
+            let rem = totalMines - flagsPlaced;
+            document.getElementById('flag-counter').innerText = rem;
+        }
+
+        function handleReveal(idx) {
+            let cellData = gridData[idx];
+            if (cellData.flagged || cellData.revealed) return;
+
+            if (isFirstClick) {
+                placeMines(idx);
+                calculateNeighbors();
+                isFirstClick = false;
+            }
+
+            if (cellData.mine) {
+                triggerLoss(idx);
+                return;
+            }
+
+            sndClick();
+            floodFillReveal(idx);
+            checkWin();
+        }
+
+        function placeMines(safeIdx) {
+            let placed = 0;
+            while (placed < totalMines) {
+                let rnd = Math.floor(Math.random() * (cols * rows));
+                if (rnd !== safeIdx && !gridData[rnd].mine) {
+                    let n = getNeighbors(safeIdx);
+                    if (!n.includes(rnd)) { 
+                        gridData[rnd].mine = true;
+                        placed++;
+                    }
+                }
+            }
+        }
+
+        function getNeighbors(idx) {
+            let n = [];
+            let r = Math.floor(idx / cols);
+            let c = idx % cols;
+            
+            for (let y = -1; y <= 1; y++) {
+                for (let x = -1; x <= 1; x++) {
+                    if (x === 0 && y === 0) continue;
+                    let nr = r + y;
+                    let nc = c + x;
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                        n.push(nr * cols + nc);
+                    }
+                }
+            }
+            return n;
+        }
+
+        function calculateNeighbors() {
+            for (let i = 0; i < gridData.length; i++) {
+                if (gridData[i].mine) continue;
+                let count = 0;
+                let n = getNeighbors(i);
+                for (let j = 0; j < n.length; j++) {
+                    if (gridData[n[j]].mine) count++;
+                }
+                gridData[i].neighbors = count;
+            }
+        }
+
+        function floodFillReveal(idx) {
+            if (gridData[idx].revealed || gridData[idx].flagged) return;
+            
+            gridData[idx].revealed = true;
+            safeCellsRevealed++;
+            
+            let el = document.getElementById('cell-' + idx);
+            el.classList.add('revealed');
+            
+            let val = gridData[idx].neighbors;
+            if (val > 0) {
+                el.innerText = val;
+                el.setAttribute('data-val', val);
+            } else {
+                let n = getNeighbors(idx);
+                for (let i = 0; i < n.length; i++) {
+                    floodFillReveal(n[i]);
+                }
+            }
+        }
+
+        function checkWin() {
+            let totalSafe = (cols * rows) - totalMines;
+            if (safeCellsRevealed === totalSafe) {
+                isGameOver = true;
+                sndSuccess();
+                msg("ABSCHNITT ERFOLGREICH GEKLÄRT!", "var(--safe)");
+                revealAllBombs(true);
+                
+                document.getElementById('controls-area').style.display = 'block';
+                document.getElementById('btn-next').style.display = 'block';
+            }
+        }
+
+        function triggerLoss(fatalIdx) {
+            isGameOver = true;
+            sndError();
+            msg("BUMM! Du bist auf eine Falle getreten!", "var(--danger)");
+            
+            let panel = document.querySelector('.stone-panel');
+            panel.classList.add('shake');
+            setTimeout(() => panel.classList.remove('shake'), 400);
+
+            let hitEl = document.getElementById('cell-' + fatalIdx);
+            hitEl.classList.add('mine');
+            hitEl.classList.add('mine-hit');
+            hitEl.innerText = '💥';
+
+            revealAllBombs(false);
+
+            document.getElementById('controls-area').style.display = 'block';
+            document.getElementById('btn-retry').style.display = 'block';
+        }
+
+        function revealAllBombs(won) {
+            for (let i = 0; i < gridData.length; i++) {
+                let cell = gridData[i];
+                let el = document.getElementById('cell-' + i);
+                
+                if (cell.mine && !cell.flagged) {
+                    if (won) {
+                        el.innerText = '🚩';
+                        el.classList.add('flagged');
+                    } else {
+                        el.innerText = '💣';
+                        el.classList.add('mine');
+                    }
+                } else if (!cell.mine && cell.flagged && !won) {
+                    el.innerText = '❌';
+                    el.style.background = '#e57373';
+                }
+            }
+        }
+
+        function restartLevel() { buildLevel(); }
+
+        function nextLevel() {
+            currentLevel++;
+            if (currentLevel >= LEVELS.length) { showFinal(); } else { buildLevel(); }
+        }
+
+        function showFinal() {
+            document.getElementById('game-screen').classList.remove('active');
+            document.getElementById('final-screen').classList.add('active');
+            document.getElementById('final-coords').innerText = atob(SEC_FIN).replace(/\^/g,'°');
+            sndSuccess();
+        }
+    </script>
+</body>
+</html>
